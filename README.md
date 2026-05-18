@@ -38,9 +38,9 @@ pip install -r requirements.txt
 
 ### Running the Training Script
 
-Run `main.py` to start training. Example command:
+Run `train.py` to start training. Example command:
 ```bash
-python main.py --batch_size 8 --epochs 10 --push_to_hub --hf_repo_id "<username>/<repo name>"
+python src/train.py --batch_size 8 --epochs 10 --push_to_hub --hf_repo_id "<username>/<repo name>"
 ```
 
 By default, the training status and best checkpoint will be saved at `./outputs/logs/`.
@@ -48,7 +48,7 @@ You can customize training settings (like `batch_size`, `epochs`, `learning_rate
 
 ```bash
 # Custom training with configs and arguments
-python main.py --config configs/mobileSAM.json --batch_size 4 --epochs 1000 --resume
+python src/train.py --config configs/mobileSAM.json --batch_size 4 --epochs 1000 --resume
 ```
 
 ### Running Automatic Mask Generation
@@ -93,7 +93,11 @@ To use the finetuned MobileSAM model, simply replace the original MobileSAM chec
 - [x] Resume checkpoint training from the last finetuned checkpoint
 - [x] Use Albumentations to augment the data
 - [x] Add an option to push the model to HF
-
+- [x] Add mAP@50, mAP@50:95, mIoU, Dice Score in the validation phase and make a log for them
+- [x] Early stoppping with mAP@50
+- [ ] Test and fix the inference script
+- [ ] Test and fix the ONNX export script
+- [ ] Hyperparameter tuning
 
 ## References
 - [MobileSAM-fast-finetuning](https://github.com/KdaiP/MobileSAM-fast-finetuning)
