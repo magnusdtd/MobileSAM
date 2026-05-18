@@ -1,6 +1,8 @@
 import logging
+from pathlib import Path
 from typing import Any
 
+import requests
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -10,6 +12,7 @@ from mobile_sam.modeling.image_encoder import ImageEncoderViT
 from mobile_sam.modeling.mask_decoder import MaskDecoder
 from mobile_sam.modeling.prompt_encoder import PromptEncoder
 from mobile_sam.modeling.tiny_vit_sam import TinyViT
+from src.load_logger import Logger
 
 
 class SAM(nn.Module):
@@ -121,7 +124,30 @@ class SAM(nn.Module):
         return x
 
 
-def get_sam_vit_t(checkpoint=None, resume=False):
+def _load_matching_state_dict(model: nn.Module, checkpoint_path: Path) -> None:
+    with open(checkpoint_path, "rb") as f:
+        state_dict = torch.load(f)
+
+    model_state = model.state_dict()
+    compatible_state = {}
+    skipped_keys = []
+    for key, value in state_dict.items():
+        if key in model_state and model_state[key].shape == value.shape:
+            compatible_state[key] = value
+        else:
+            skipped_keys.append(key)
+
+    model.load_state_dict(compatible_state, strict=False)
+    if skipped_keys:
+        logging.info("Skipped %d checkpoint keys with incompatible shapes.", len(skipped_keys))
+
+
+def get_sam_vit_t(checkpoint_path=None, resume=False, num_mask_outputs=3):
+
+    if checkpoint_path is not None:
+        checkpoint_path = Path(checkpoint_path)
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+
     prompt_embed_dim = 256
     image_size = 1024
     vit_patch_size = 16
@@ -150,7 +176,7 @@ def get_sam_vit_t(checkpoint=None, resume=False):
             mask_in_chans=16,
         ),
         mask_decoder=MaskDecoder(
-            num_multimask_outputs=3,
+            num_multimask_outputs=num_mask_outputs,
             transformer=TwoWayTransformer(
                 depth=2,
                 embedding_dim=prompt_embed_dim,
@@ -165,9 +191,23 @@ def get_sam_vit_t(checkpoint=None, resume=False):
         pixel_std=[58.395, 57.12, 57.375],
     )
 
-    if checkpoint is not None and resume is False:
-        with open(checkpoint, "rb") as f:
-            state_dict = torch.load(f)
-        mobile_sam.load_state_dict(state_dict, strict=False)
-        logging.info(f"Using pretrained model: {checkpoint}")
+    if checkpoint_path is not None and resume is False:
+        if not checkpoint_path.is_file():
+            logger = Logger(checkpoint_path.parent / "log.log").get_logger()
+            logger.info(f"Downloading MobileSAM checkpoint to {checkpoint_path}...")
+            url = "https://raw.githubusercontent.com/ChaoningZhang/MobileSAM/master/weights/mobile_sam.pt"
+            filename = "mobile_sam.pt"
+
+            logger.info(f"Downloading {filename}...")
+
+            with requests.get(url, stream=True) as response:
+                response.raise_for_status()
+                with open(checkpoint_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+
+            print("Download complete!")
+
+        _load_matching_state_dict(mobile_sam, checkpoint_path)
+        logging.info(f"Using pretrained model: {checkpoint_path}")
     return mobile_sam

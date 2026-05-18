@@ -1,6 +1,6 @@
 import torch
 import wandb
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from torchvision.ops import sigmoid_focal_loss
 from tqdm import tqdm
 
@@ -34,7 +34,7 @@ def train_epoch(
         # Forward pass with mixed precision
         with autocast(enabled=args.train.bf16, dtype=torch.bfloat16):
             pred_mask, pred_IOU = model(image, bbox)
-            iou = batch_iou(mask, torch.sigmoid(pred_mask))
+            iou = batch_iou(torch.sigmoid(pred_mask), mask)
 
             loss_focal = sigmoid_focal_loss(pred_mask, mask, reduction="mean")
             loss_dice = criterion_Dice(pred_mask, mask)
@@ -88,7 +88,7 @@ def val_epoch(
 
             # Forward pass
             pred_mask, pred_IOU = model(image, bbox)
-            iou = batch_iou(mask, torch.sigmoid(pred_mask))
+            iou = batch_iou(torch.sigmoid(pred_mask), mask)
 
             loss_focal = sigmoid_focal_loss(pred_mask, mask, reduction="mean")
             loss_dice = criterion_Dice(pred_mask, mask)

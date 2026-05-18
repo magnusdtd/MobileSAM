@@ -86,6 +86,12 @@ class SAMDataset(Dataset):
             self.coco_data = json.load(f)
 
         self.images_data = self.coco_data.get("images", [])
+        categories = self.coco_data.get("categories", [])
+        self.category_ids = sorted(category["id"] for category in categories)
+        if not self.category_ids:
+            raise ValueError(f"No categories found in {self.annotation_path}")
+        self.category_id_to_channel = {category_id: idx for idx, category_id in enumerate(self.category_ids)}
+        self.num_classes = len(self.category_ids)
 
         # Build mapping from image_id to image info
         self.image_info = {img["id"]: img for img in self.images_data}
@@ -93,11 +99,31 @@ class SAMDataset(Dataset):
         # Get all .jpg and .jpeg files
         all_images = list(self.root_dir.rglob("*.jpg")) + list(self.root_dir.rglob("*.jpeg"))
         
+        coco_by_path = {}
+        coco_by_name = {}
+        for entry in self.images_data:
+            file_name = entry.get("file_name")
+            if not file_name:
+                continue
+            normalized_file_name = _normalize_path(file_name)
+            coco_by_path[normalized_file_name] = entry
+            coco_by_name.setdefault(PurePath(normalized_file_name).name, []).append(entry)
+
         # Match files to COCO entries
         valid_image_ids = []
         self.img_id_to_path = {}
         for img_path in all_images:
-            entry = _find_image_entry(self.images_data, str(img_path))
+            normalized_path = _normalize_path(str(img_path))
+            relative_path = _normalize_path(str(img_path.relative_to(self.root_dir)))
+            matches = coco_by_name.get(PurePath(normalized_path).name, [])
+            entry = coco_by_path.get(relative_path)
+            if entry is None and len(matches) == 1:
+                entry = matches[0]
+            elif entry is None and len(matches) > 1:
+                raise ValueError(
+                    f"Found multiple COCO entries matching '{img_path.name}'. "
+                    "Pass an image path that matches the stored relative path."
+                )
             if entry is not None:
                 img_id = entry["id"]
                 valid_image_ids.append(img_id)
@@ -149,14 +175,12 @@ class SAMDataset(Dataset):
         image_size = image.size  # (width, height)
         image_np = np.array(image)
 
-        # Generate 4-channel mask
-        # Assuming category_id in 1, 2, 3, 4
         category_id = ann.get("category_id", 1)
-        channel_idx = category_id - 1
-        if channel_idx < 0 or channel_idx > 3:
-            channel_idx = 0 # fallback
+        if category_id not in self.category_id_to_channel:
+            raise ValueError(f"Annotation category_id={category_id} is not defined in {self.annotation_path}")
+        channel_idx = self.category_id_to_channel[category_id]
             
-        mask_np = np.zeros((4, image_size[1], image_size[0]), dtype=np.uint8)
+        mask_np = np.zeros((self.num_classes, image_size[1], image_size[0]), dtype=np.uint8)
         
         segmentation = ann.get("segmentation", [])
         if isinstance(segmentation, list) and len(segmentation) > 0:

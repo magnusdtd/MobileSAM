@@ -38,18 +38,54 @@ pip install -r requirements.txt
 
 ### Running the Training Script
 
-Run `main.py`. Example command:
+Run `main.py` to start training. Example command:
 ```bash
-python main.py --batch_size 8 --epochs 1 --push_to_hub --hf_repo_id "<username>/<repo name>"
+python main.py --batch_size 8 --epochs 10 --push_to_hub --hf_repo_id "<username>/<repo name>"
 ```
 
-By default, the checkpoint will be saved at  `./outputs/logs/`
+By default, the training status and best checkpoint will be saved at `./outputs/logs/`.
+You can customize training settings (like `batch_size`, `epochs`, `learning_rate`, freezing options, etc.) by modifying the JSON configuration file located at `./configs/mobileSAM.json` or by overriding them with command-line arguments:
 
-To customize your training settings, such as batch_size, you can modify the configuration file located at `./configs/mobileSAM.json`. Please note that for users of PyTorch versions earlier than 2.1, enabling `bf16=true` in the configuration may result in errors.
+```bash
+# Custom training with configs and arguments
+python main.py --config configs/mobileSAM.json --batch_size 4 --epochs 1000 --resume
+```
+
+### Running Automatic Mask Generation
+
+To automatically generate binary masks (PNG format) or COCO-style RLE masks for an image or directory of images, use the automatic mask generation script:
+
+```bash
+# Basic run generating binary mask folders:
+python src/amg.py --input path/to/images --output path/to/output_dir --model-type vit_t --checkpoint outputs/weights/mobile_sam.pt
+
+# Generate masks and convert them to COCO RLE JSON:
+python src/amg.py --input path/to/images --output path/to/output_dir --model-type vit_t --checkpoint outputs/weights/mobile_sam.pt --convert-to-rle
+```
+
+### Exporting the Model to ONNX
+
+You can export the fine-tuned model's prompt encoder and mask decoder to an ONNX model (and optionally dynamically quantize it to INT8 format for optimized execution):
+
+```bash
+# Standard ONNX export:
+python src/export_onnx_model.py --checkpoint outputs/weights/mobile_sam.pt --output mobile_sam.onnx --model-type vit_t
+
+# Export with dynamic quantization:
+python src/export_onnx_model.py --checkpoint outputs/weights/mobile_sam.pt --output mobile_sam.onnx --quantize-out mobile_sam_quantized.onnx --model-type vit_t
+```
+
+### Visualizing Annotations
+
+To visualize overlaid mask annotations (COCO-style JSON files) on a target image:
+
+```bash
+python scripts/show_masks.py --image_path path/to/image.jpg --annotation_path path/to/annotation.json
+```
 
 ## Inference
 
-To use the finetuned MobileSAM model, simply replace the original MobileSAM checkpoint with the newly finetuned one. No additional configuration needed for a seamless transition!
+To use the finetuned MobileSAM model, simply replace the original MobileSAM checkpoint with the newly finetuned one. No additional configuration is needed for a seamless transition!
 
 ## To do list
 - [x] Unify the argument parser

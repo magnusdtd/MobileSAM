@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 import wandb
 from huggingface_hub import HfApi
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from torch.utils.data import DataLoader
 
 from src.args import parse_args
@@ -24,27 +24,28 @@ set_seed(3407)
 def main(args):
     assert torch.cuda.is_available(), "CUDA is not available."
 
-    train_transform, val_transform = get_transforms(args.model.image_size)
+    train_transform, val_transform = get_transforms(image_size=(args.model.image_size, args.model.image_size))
 
     train_dataset = SAMDataset(
         root_dir=args.dataset.dataset_dir,
         transform=train_transform,
         max_bbox_shift=args.dataset.max_bbox_shift,
-        split="train"
+        split="train",
     )
     val_dataset = SAMDataset(
         root_dir=args.dataset.dataset_dir,
         transform=val_transform,
         max_bbox_shift=args.dataset.max_bbox_shift,
-        split="val"
+        split="val",
     )
     test_dataset = SAMDataset(
         root_dir=args.dataset.dataset_dir,
         transform=val_transform,
         max_bbox_shift=args.dataset.max_bbox_shift,
-        split="test"
+        split="test",
     )
-    
+    num_mask_outputs = train_dataset.num_classes
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.train.batch_size,
@@ -83,7 +84,11 @@ def main(args):
 
     # Load the MobileSAM checkpoint and move it to CUDA
     # get_sam_vit_t handles base weights
-    model = get_sam_vit_t(checkpoint=checkpoint_path, resume=False).cuda()
+    model = get_sam_vit_t(
+        checkpoint_path=checkpoint_path,
+        resume=False,
+        num_mask_outputs=num_mask_outputs,
+    ).cuda()
 
     # Conditionally freeze layers based on args
     for param in model.image_encoder.parameters():
@@ -157,7 +162,7 @@ def main(args):
     if best_model_path.exists():
         ckpt = torch.load(best_model_path)
         model.load_state_dict(ckpt["model"])
-        
+
     test_loss = val_epoch(args, test_loader, model, criterion_MSE, criterion_Dice, args.train.epochs, scaler)
     logger.info(f"Final Test Loss: {test_loss:.4f}")
 

@@ -1,6 +1,6 @@
 {
     "dataset": {
-        "dataset_dir": "./datasets/coffee_leaf_disease",
+        "dataset_dir": "./datasets/rice_leaf_disease",
         "max_bbox_shift": 20,
         "num_workers": 4
     },
