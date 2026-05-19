@@ -16,6 +16,11 @@ def parse_args():
 
     # Model
     parser.add_argument("--checkpoint_path", type=str, help="Path to MobileSAM checkpoint")
+    parser.add_argument(
+        "--checkpoint_prefix",
+        type=str,
+        help='Prefix for saved checkpoints (e.g. "rice_" creates rice_best.pth and rice_last.pth)',
+    )
     parser.add_argument("--model_type", type=str, help="Model type (e.g. vit_t)")
     parser.add_argument("--image_size", type=int, help="Image size")
     parser.add_argument("--save_path", type=str, help="Path to save logs and weights")
@@ -63,6 +68,10 @@ def parse_args():
 
     if args.checkpoint_path is not None:
         config.model.checkpoint_path = args.checkpoint_path
+    if not hasattr(config.model, "checkpoint_prefix"):
+        config.model.checkpoint_prefix = ""
+    if args.checkpoint_prefix is not None:
+        config.model.checkpoint_prefix = args.checkpoint_prefix
     if args.model_type is not None:
         config.model.type = args.model_type
     if args.image_size is not None:

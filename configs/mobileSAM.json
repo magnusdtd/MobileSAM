@@ -6,6 +6,7 @@
     },
     "model": {
         "checkpoint_path": "./outputs/weights/mobile_sam.pt",
+        "checkpoint_prefix": "",
         "type": "vit_t",
         "image_size": 1024,
         "save_path": "./outputs/logs"

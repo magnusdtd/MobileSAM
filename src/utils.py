@@ -22,6 +22,7 @@ def save_checkpoint(
     state: dict,
     is_best: bool,
     checkpoint_dir: Path,
+    checkpoint_prefix: str = "",
 ):
     """
     Save the current training checkpoint.
@@ -30,9 +31,10 @@ def save_checkpoint(
         state: A dictionary containing the model's state and optimizer's state.
         is_best: A boolean flag to determine if the current checkpoint is the best based on validation loss.
         checkpoint_dir: The directory path where checkpoints are saved.
+        checkpoint_prefix: Prefix added to checkpoint filenames.
     """
-    last_path = checkpoint_dir / "last.pth"
-    best_path = checkpoint_dir / "best.pth"
+    last_path = checkpoint_dir / f"{checkpoint_prefix}last.pth"
+    best_path = checkpoint_dir / f"{checkpoint_prefix}best.pth"
     try:
         torch.save(state, last_path)
         logging.info(f"Checkpoint saved successfully at {last_path}")

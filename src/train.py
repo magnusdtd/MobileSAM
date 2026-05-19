@@ -227,6 +227,7 @@ def main(args):
     # Define checkpoint and saving paths
     checkpoint_path = Path(args.model.checkpoint_path)
     save_path = Path(args.model.save_path)
+    checkpoint_prefix = getattr(args.model, "checkpoint_prefix", "")
     save_path.mkdir(parents=True, exist_ok=True)
 
     # Initialize the logger
@@ -267,7 +268,7 @@ def main(args):
 
     # Resume from checkpoint if specified
     if args.train.resume:
-        last_ckpt_path = save_path / "last.pth"
+        last_ckpt_path = save_path / f"{checkpoint_prefix}last.pth"
         if last_ckpt_path.exists():
             logger.info(f"Resuming training from {last_ckpt_path}")
             ckpt = torch.load(last_ckpt_path)
@@ -306,7 +307,10 @@ def main(args):
             # the best model could be used like the original MobileSAM checkpoint without any modification
             is_best = map_50 > best_map_50
             save_checkpoint(
-                {"epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict()}, is_best, save_path
+                {"epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict()},
+                is_best,
+                save_path,
+                checkpoint_prefix,
             )
             if is_best:
                 best_map_50 = map_50
@@ -319,7 +323,7 @@ def main(args):
 
     # Run inference on the test set
     logger.info("Running evaluation on Test Set...")
-    best_model_path = save_path / "best.pth"
+    best_model_path = save_path / f"{checkpoint_prefix}best.pth"
     if best_model_path.exists():
         ckpt = torch.load(best_model_path)
         model.load_state_dict(ckpt)
@@ -333,11 +337,10 @@ def main(args):
     if getattr(args, "push_to_hub", False) and getattr(args, "hf_repo_id", ""):
         logger.info(f"Pushing best model to Hugging Face Hub: {args.hf_repo_id}")
         api = HfApi()
-        best_model_path = save_path / "best.pth"
         if best_model_path.exists():
             api.upload_file(
                 path_or_fileobj=str(best_model_path),
-                path_in_repo="best.pth",
+                path_in_repo=best_model_path.name,
                 repo_id=args.hf_repo_id,
                 token=args.hf_token,
                 commit_message="Upload fine-tuned MobileSAM model",

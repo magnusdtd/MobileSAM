@@ -95,6 +95,7 @@ To use the finetuned MobileSAM model, simply replace the original MobileSAM chec
 - [x] Add an option to push the model to HF
 - [x] Add mAP@50, mAP@50:95, mIoU, Dice Score in the validation phase and make a log for them
 - [x] Early stoppping with mAP@50
+- [x] Add preffix ("rice_" and "coffee_") at the begin of the checkpoint
 - [ ] Test and fix the inference script
 - [ ] Test and fix the ONNX export script
 - [ ] Hyperparameter tuning
