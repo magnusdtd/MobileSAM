@@ -124,9 +124,16 @@ class SAM(nn.Module):
         return x
 
 
-def _load_matching_state_dict(model: nn.Module, checkpoint_path: Path) -> None:
+def _load_matching_state_dict(
+    model: nn.Module,
+    checkpoint_path: Path,
+    strict_shapes: bool = False,
+) -> None:
     with open(checkpoint_path, "rb") as f:
-        state_dict = torch.load(f)
+        state_dict = torch.load(f, map_location="cpu")
+
+    if "model" in state_dict:
+        state_dict = state_dict["model"]
 
     model_state = model.state_dict()
     compatible_state = {}
@@ -137,12 +144,32 @@ def _load_matching_state_dict(model: nn.Module, checkpoint_path: Path) -> None:
         else:
             skipped_keys.append(key)
 
+    if strict_shapes and skipped_keys:
+        details = "\n".join(
+            f"- {key}: checkpoint {tuple(value.shape) if hasattr(value, 'shape') else type(value)}, "
+            f"model {tuple(model_state[key].shape) if key in model_state else 'missing'}"
+            for key, value in state_dict.items()
+            if key not in compatible_state
+        )
+        raise RuntimeError(
+            f"Checkpoint {checkpoint_path} is incompatible with this model configuration.\n"
+            f"Requested num_mask_outputs={model.mask_decoder.num_multimask_outputs}, "
+            f"which expects {model.mask_decoder.num_mask_tokens} mask tokens including the single-mask token.\n"
+            f"Incompatible keys:\n{details}"
+        )
+
     model.load_state_dict(compatible_state, strict=False)
     if skipped_keys:
         logging.info("Skipped %d checkpoint keys with incompatible shapes.", len(skipped_keys))
 
 
-def get_sam_vit_t(checkpoint_path=None, resume=False, num_mask_outputs=3):
+def get_sam_vit_t(
+    checkpoint_path=None,
+    resume=False,
+    num_mask_outputs=3,
+    allow_download=True,
+    strict_checkpoint_shapes=False,
+):
 
     if checkpoint_path is not None:
         checkpoint_path = Path(checkpoint_path)
@@ -193,6 +220,12 @@ def get_sam_vit_t(checkpoint_path=None, resume=False, num_mask_outputs=3):
 
     if checkpoint_path is not None and resume is False:
         if not checkpoint_path.is_file():
+            if not allow_download:
+                raise FileNotFoundError(
+                    f"Checkpoint not found: {checkpoint_path}. "
+                    "Train saves the best checkpoint under model.save_path, "
+                    "which defaults to outputs/logs/best.pth."
+                )
             logger = Logger(checkpoint_path.parent / "log.log").get_logger()
             logger.info(f"Downloading MobileSAM checkpoint to {checkpoint_path}...")
             url = "https://raw.githubusercontent.com/ChaoningZhang/MobileSAM/master/weights/mobile_sam.pt"
@@ -208,6 +241,6 @@ def get_sam_vit_t(checkpoint_path=None, resume=False, num_mask_outputs=3):
 
             print("Download complete!")
 
-        _load_matching_state_dict(mobile_sam, checkpoint_path)
+        _load_matching_state_dict(mobile_sam, checkpoint_path, strict_shapes=strict_checkpoint_shapes)
         logging.info(f"Using pretrained model: {checkpoint_path}")
     return mobile_sam

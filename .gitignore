@@ -12,3 +12,4 @@ weights/
 *.pt
 *.pth
 datasets/
+outputs/

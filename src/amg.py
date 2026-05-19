@@ -84,7 +84,14 @@ def get_amg_kwargs(args):
 def main(args: argparse.Namespace) -> None:
     print("Loading model...")
     if args.model_type == "vit_t":
-        sam = get_sam_vit_t(checkpoint_path=args.checkpoint, resume=False, num_mask_outputs=args.num_classes)
+        print(f"Loading ViT Tiny MobileSAM from {args.checkpoint}...")
+        sam = get_sam_vit_t(
+            checkpoint_path=args.checkpoint,
+            resume=False,
+            num_mask_outputs=args.num_classes,
+            allow_download=False,
+            strict_checkpoint_shapes=True,
+        )
     else:
         sam = sam_model_registry[args.model_type](checkpoint=args.checkpoint)
     _ = sam.to(device=args.device)
@@ -109,12 +116,15 @@ def main(args: argparse.Namespace) -> None:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         masks = generator.generate(image)
+        print(f"[DEBUG] len(masks) = {len(masks)}")
+        print(f"[DEBUG] type(masks) = {type(masks)}")
+        print(f"[DEBUG] masks = {masks}")
 
         base = os.path.basename(t)
         base = os.path.splitext(base)[0]
         save_base = os.path.join(args.output, base)
         if output_mode == "binary_mask":
-            os.makedirs(save_base, exist_ok=False)
+            os.makedirs(save_base, exist_ok=True)
             write_masks_to_folder(masks, save_base, args.dataset)
         else:
             save_file = save_base + ".json"
