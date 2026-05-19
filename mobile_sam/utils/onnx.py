@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from ..modeling import Sam
+from ..modeling import SAM
 from .amg import calculate_stability_score
 
 
@@ -16,7 +16,7 @@ class SAMOnnxModel(nn.Module):
 
     def __init__(
         self,
-        model: Sam,
+        model: SAM,
         return_single_mask: bool,
         use_stability_score: bool = False,
         return_extra_metrics: bool = False,

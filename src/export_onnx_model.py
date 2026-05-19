@@ -2,12 +2,14 @@ import warnings
 
 import onnxruntime
 import torch
+import torch.onnx.utils as onnx_utils
 from onnxruntime.quantization import QuantType
 from onnxruntime.quantization.quantize import quantize_dynamic
 
 from mobile_sam import sam_model_registry
 from mobile_sam.utils.onnx import SAMOnnxModel
 from src.args import parse_export_args
+from src.load_checkpoint import get_sam_vit_t
 
 
 def run_export(
@@ -16,12 +18,16 @@ def run_export(
     output: str,
     opset: int,
     return_single_mask: bool,
+    num_classes: int = 4,
     gelu_approximate: bool = False,
     use_stability_score: bool = False,
     return_extra_metrics=False,
 ):
     print("Loading model...")
-    sam = sam_model_registry[model_type](checkpoint=checkpoint)
+    if model_type == "vit_t":
+        sam = get_sam_vit_t(checkpoint_path=checkpoint, resume=False, num_mask_outputs=num_classes)
+    else:
+        sam = sam_model_registry[model_type](checkpoint=checkpoint)
 
     onnx_model = SAMOnnxModel(
         model=sam,
@@ -61,7 +67,7 @@ def run_export(
         warnings.filterwarnings("ignore", category=UserWarning)
         with open(output, "wb") as f:
             print(f"Exporting onnx model to {output}...")
-            torch.onnx.export(
+            onnx_utils.export(
                 onnx_model,
                 tuple(dummy_inputs.values()),
                 f,
@@ -94,6 +100,7 @@ if __name__ == "__main__":
         output=args.output,
         opset=args.opset,
         return_single_mask=args.return_single_mask,
+        num_classes=args.num_classes,
         gelu_approximate=args.gelu_approximate,
         use_stability_score=args.use_stability_score,
         return_extra_metrics=args.return_extra_metrics,
@@ -104,7 +111,6 @@ if __name__ == "__main__":
         quantize_dynamic(
             model_input=args.output,
             model_output=args.quantize_out,
-            optimize_model=True,
             per_channel=False,
             reduce_range=False,
             weight_type=QuantType.QUInt8,

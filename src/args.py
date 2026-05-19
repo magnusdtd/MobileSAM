@@ -157,6 +157,15 @@ def parse_amg_args():
         help=("Save masks as COCO RLEs in a single json instead of as a folder of PNGs. Requires pycocotools."),
     )
 
+    parser.add_argument("--num-classes", type=int, default=4, help="Number of mask classes.")
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="coffee",
+        choices=["coffee", "rice"],
+        help="Dataset label mapping for visualization.",
+    )
+
     amg_settings = parser.add_argument_group("AMG Settings")
 
     amg_settings.add_argument(
@@ -258,6 +267,8 @@ def parse_export_args():
         required=True,
         help="In ['default', 'vit_h', 'vit_l', 'vit_b']. Which type of SAM model to export.",
     )
+
+    parser.add_argument("--num-classes", type=int, default=4, help="Number of mask classes.")
 
     parser.add_argument(
         "--return-single-mask",

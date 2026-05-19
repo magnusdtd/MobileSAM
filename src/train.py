@@ -322,7 +322,7 @@ def main(args):
     best_model_path = save_path / "best.pth"
     if best_model_path.exists():
         ckpt = torch.load(best_model_path)
-        model.load_state_dict(ckpt["model"])
+        model.load_state_dict(ckpt)
 
     test_loss, test_map_50 = val_epoch(
         args, test_loader, model, criterion_MSE, criterion_Dice, args.train.epochs, scaler

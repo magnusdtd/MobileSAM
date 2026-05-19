@@ -189,6 +189,7 @@ class SAMAutomaticMaskGenerator:
                 "point_coords": [mask_data["points"][idx].tolist()],
                 "stability_score": mask_data["stability_score"][idx].item(),
                 "crop_box": box_xyxy_to_xywh(mask_data["crop_boxes"][idx]).tolist(),
+                "label": mask_data["labels"][idx].item() if "labels" in mask_data._stats else 0,
             }
             curr_anns.append(ann)
 
@@ -212,7 +213,7 @@ class SAMAutomaticMaskGenerator:
             keep_by_nms = batched_nms(
                 data["boxes"].float(),
                 scores,
-                torch.zeros_like(data["boxes"][:, 0]),  # categories
+                data["labels"] if "labels" in data._stats else torch.zeros_like(data["boxes"][:, 0]),  # categories
                 iou_threshold=self.crop_nms_thresh,
             )
             data.filter(keep_by_nms)
@@ -249,7 +250,7 @@ class SAMAutomaticMaskGenerator:
         keep_by_nms = batched_nms(
             data["boxes"].float(),
             data["iou_preds"],
-            torch.zeros_like(data["boxes"][:, 0]),  # categories
+            data["labels"] if "labels" in data._stats else torch.zeros_like(data["boxes"][:, 0]),  # categories
             iou_threshold=self.box_nms_thresh,
         )
         data.filter(keep_by_nms)
@@ -282,10 +283,12 @@ class SAMAutomaticMaskGenerator:
         )
 
         # Serialize predictions and store in MaskData
+        labels = torch.arange(masks.shape[1], device=masks.device).unsqueeze(0).repeat(masks.shape[0], 1)
         data = MaskData(
             masks=masks.flatten(0, 1),
             iou_preds=iou_preds.flatten(0, 1),
             points=torch.as_tensor(points.repeat(masks.shape[1], axis=0)),
+            labels=labels.flatten(0, 1),
         )
         del masks
 
@@ -353,7 +356,7 @@ class SAMAutomaticMaskGenerator:
         keep_by_nms = batched_nms(
             boxes.float(),
             torch.as_tensor(scores),
-            torch.zeros_like(boxes[:, 0]),  # categories
+            mask_data["labels"] if "labels" in mask_data._stats else torch.zeros_like(boxes[:, 0]),  # categories
             iou_threshold=nms_thresh,
         )
 
