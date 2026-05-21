@@ -9,7 +9,7 @@ input_dir = f"datasets/rice_leaf_disease/{disease_type}"
 output_dir = "outputs/samples"
 
 input_path = os.path.join(input_dir, f"{img_name}.jpg")
-checkpoint_path = "outputs/weights/best.pth"
+checkpoint_path = "outputs/weights/rice_best.pth"
 vis_path = os.path.join(output_dir, img_name, "visualization.jpg")
 
 

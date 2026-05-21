@@ -139,8 +139,38 @@ def _load_matching_state_dict(
     compatible_state = {}
     skipped_keys = []
     for key, value in state_dict.items():
-        if key in model_state and model_state[key].shape == value.shape:
-            compatible_state[key] = value
+        if key in model_state:
+            if model_state[key].shape == value.shape:
+                compatible_state[key] = value
+            else:
+                # Custom handling for shape mismatched mask decoder parameters
+                if key == "mask_decoder.mask_tokens.weight":
+                    new_weight = model_state[key].clone()
+                    min_tokens = min(value.shape[0], new_weight.shape[0])
+                    new_weight[:min_tokens] = value[:min_tokens]
+                    if new_weight.shape[0] > value.shape[0]:
+                        # Fill the remaining slots with the single_mask token (index 0)
+                        new_weight[min_tokens:] = value[0]
+                    compatible_state[key] = new_weight
+                    logging.info(f"Custom loaded {key}: expanded from {value.shape} to {new_weight.shape}")
+                elif key == "mask_decoder.iou_prediction_head.layers.2.weight":
+                    new_weight = model_state[key].clone()
+                    min_tokens = min(value.shape[0], new_weight.shape[0])
+                    new_weight[:min_tokens] = value[:min_tokens]
+                    if new_weight.shape[0] > value.shape[0]:
+                        new_weight[min_tokens:] = value[0]
+                    compatible_state[key] = new_weight
+                    logging.info(f"Custom loaded {key}: expanded from {value.shape} to {new_weight.shape}")
+                elif key == "mask_decoder.iou_prediction_head.layers.2.bias":
+                    new_bias = model_state[key].clone()
+                    min_tokens = min(value.shape[0], new_bias.shape[0])
+                    new_bias[:min_tokens] = value[:min_tokens]
+                    if new_bias.shape[0] > value.shape[0]:
+                        new_bias[min_tokens:] = value[0]
+                    compatible_state[key] = new_bias
+                    logging.info(f"Custom loaded {key}: expanded from {value.shape} to {new_bias.shape}")
+                else:
+                    skipped_keys.append(key)
         else:
             skipped_keys.append(key)
 
@@ -159,6 +189,19 @@ def _load_matching_state_dict(
         )
 
     model.load_state_dict(compatible_state, strict=False)
+
+    # If the model has extra mask output MLPs (checkpoint has 4 MLPs corresponding to 4 mask tokens),
+    # copy the weights of MLP 0 (single_mask) to the extra MLPs.
+    if hasattr(model, "mask_decoder") and hasattr(model.mask_decoder, "num_mask_tokens"):
+        num_mask_tokens = model.mask_decoder.num_mask_tokens
+        checkpoint_mlps = 4
+        if num_mask_tokens > checkpoint_mlps:
+            for i in range(checkpoint_mlps, num_mask_tokens):
+                model.mask_decoder.output_hypernetworks_mlps[i].load_state_dict(
+                    model.mask_decoder.output_hypernetworks_mlps[0].state_dict()
+                )
+            logging.info(f"Copied weights from output_hypernetworks_mlps[0] to index {checkpoint_mlps} through {num_mask_tokens - 1}")
+
     if skipped_keys:
         logging.info("Skipped %d checkpoint keys with incompatible shapes.", len(skipped_keys))
 

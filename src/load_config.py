@@ -65,7 +65,7 @@ def load_args_from_json(json_file: Path) -> Args:
     if not json_file.exists():
         raise FileNotFoundError(f"JSON file {json_file} not found!")
 
-    with open(json_file) as f:
+    with open(json_file, encoding="utf-8") as f:
         params = json.load(f)
 
     return Args(params)

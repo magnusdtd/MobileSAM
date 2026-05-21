@@ -57,7 +57,7 @@ def write_masks_to_folder(masks: list[dict[str, Any]], path: str, dataset_type: 
         row = ",".join(mask_metadata)
         metadata.append(row)
     metadata_path = os.path.join(path, "metadata.csv")
-    with open(metadata_path, "w") as f:
+    with open(metadata_path, "w", encoding="utf-8") as f:
         f.write("\n".join(metadata))
 
     return
@@ -128,7 +128,7 @@ def main(args: argparse.Namespace) -> None:
             write_masks_to_folder(masks, save_base, args.dataset)
         else:
             save_file = save_base + ".json"
-            with open(save_file, "w") as f:
+            with open(save_file, "w", encoding="utf-8") as f:
                 json.dump(masks, f)
 
         # Visualization

@@ -82,7 +82,7 @@ class SAMDataset(Dataset):
 
         self.annotation_path = Path(annotation_path)
 
-        with open(self.annotation_path) as f:
+        with open(self.annotation_path, encoding="utf-8") as f:
             self.coco_data = json.load(f)
 
         self.images_data = self.coco_data.get("images", [])

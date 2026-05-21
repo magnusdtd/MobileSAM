@@ -114,7 +114,7 @@ class DiceLoss(nn.Module):
             >>> assert np.broadcast_shapes(loss.shape, input.shape) == input.shape
         """
         if self.sigmoid:
-            input = torch.tanh(input)
+            input = torch.sigmoid(input)
 
         n_pred_ch = input.shape[1]
         if self.softmax:
