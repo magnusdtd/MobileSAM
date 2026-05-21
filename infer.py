@@ -1,8 +1,8 @@
 import os
 import subprocess
 
-img_name = "IMG_20190421_200148"
-disease_type = "BrownSpot"
+img_name = "IMG_20190419_094238"
+disease_type = "Hispa"
 model_type = "vit_t"
 
 input_dir = f"datasets/rice_leaf_disease/{disease_type}"
@@ -17,21 +17,17 @@ command = [
     "uv",
     "run",
     "-m",
-    "src.amg",
+    "src.infer_bbox",
     "--input",
     input_path,
     "--output",
     output_dir,
-    "--model-type",
-    model_type,
     "--checkpoint",
     checkpoint_path,
+    "--dataset",
+    "rice",
     "--device",
     "cpu",
-    "--pred-iou-thresh",
-    "0.5",
-    "--stability-score-thresh",
-    "0.5",
 ]
 
 subprocess.run(command, check=True)
