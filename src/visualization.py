@@ -47,7 +47,7 @@ def overlay_mask_on_image(
         color = colors[c % len(colors)]
         for i in range(3):
             colored_mask[i] = torch.maximum(colored_mask[i], threshold_mask[c] * color[i])
-            
+
     combined_image = (image + colored_mask).clamp(0, 1)
 
     combined_image = (combined_image * 255).type(torch.uint8)

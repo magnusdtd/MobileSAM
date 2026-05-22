@@ -98,7 +98,7 @@ class SAMDataset(Dataset):
 
         # Get all .jpg and .jpeg files
         all_images = list(self.root_dir.rglob("*.jpg")) + list(self.root_dir.rglob("*.jpeg"))
-        
+
         coco_by_path = {}
         coco_by_name = {}
         for entry in self.images_data:
@@ -133,23 +133,24 @@ class SAMDataset(Dataset):
 
         # Deduplicate and sort for deterministic splitting
         valid_image_ids = sorted(list(set(valid_image_ids)))
-        
+
         # Split logic (70/10/20)
         import random
+
         rng = random.Random(42)
         rng.shuffle(valid_image_ids)
-        
+
         n_total = len(valid_image_ids)
         n_train = int(n_total * 0.7)
         n_val = int(n_total * 0.1)
-        
+
         if self.split == "train":
             split_ids = valid_image_ids[:n_train]
         elif self.split == "val":
-            split_ids = valid_image_ids[n_train:n_train+n_val]
-        else: # test
-            split_ids = valid_image_ids[n_train+n_val:]
-            
+            split_ids = valid_image_ids[n_train : n_train + n_val]
+        else:  # test
+            split_ids = valid_image_ids[n_train + n_val :]
+
         split_ids_set = set(split_ids)
 
         # Collect instances for the split
@@ -157,10 +158,9 @@ class SAMDataset(Dataset):
         for ann in self.coco_data.get("annotations", []):
             img_id = ann["image_id"]
             if img_id in split_ids_set and img_id in self.img_id_to_path:
-                self.instances.append({
-                    "image_id": img_id,
-                    "annotation": ann
-                })
+                segmentation = ann.get("segmentation", [])
+                if isinstance(segmentation, list) and len(segmentation) > 0:
+                    self.instances.append({"image_id": img_id, "annotation": ann})
 
     def __len__(self):
         return len(self.instances)
@@ -179,18 +179,18 @@ class SAMDataset(Dataset):
         if category_id not in self.category_id_to_channel:
             raise ValueError(f"Annotation category_id={category_id} is not defined in {self.annotation_path}")
         channel_idx = self.category_id_to_channel[category_id]
-            
+
         mask_np = np.zeros((self.num_classes, image_size[1], image_size[0]), dtype=np.uint8)
-        
+
         segmentation = ann.get("segmentation", [])
         if isinstance(segmentation, list) and len(segmentation) > 0:
             for poly in segmentation:
                 mask_img = Image.new("L", image_size, 0)
                 draw = ImageDraw.Draw(mask_img)
-                draw.polygon(poly, outline=1, fill=1)
+                draw.polygon(poly, outline=255, fill=255)
                 mask_np[channel_idx] = np.maximum(mask_np[channel_idx], np.array(mask_img))
 
-        mask = mask_np # (4, H, W)
+        mask = mask_np  # (4, H, W)
 
         # Apply transformations if any
         if self.transform:
@@ -202,8 +202,8 @@ class SAMDataset(Dataset):
             if not isinstance(mask, torch.Tensor):
                 mask = torch.tensor(mask.transpose(2, 0, 1)).float() / 255.0
             else:
-                mask = mask.permute(2, 0, 1).float()
-            
+                mask = mask.permute(2, 0, 1).float() / 255.0
+
             if not isinstance(image, torch.Tensor):
                 image = torch.tensor(image).permute(2, 0, 1).float() / 255.0
         else:
@@ -265,4 +265,3 @@ class SAMDataset(Dataset):
         x_min, x_max = cols_white[0].item(), cols_white[-1].item()
 
         return x_min, y_min, x_max, y_max
-

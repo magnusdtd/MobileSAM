@@ -200,7 +200,9 @@ def _load_matching_state_dict(
                 model.mask_decoder.output_hypernetworks_mlps[i].load_state_dict(
                     model.mask_decoder.output_hypernetworks_mlps[0].state_dict()
                 )
-            logging.info(f"Copied weights from output_hypernetworks_mlps[0] to index {checkpoint_mlps} through {num_mask_tokens - 1}")
+            logging.info(
+                f"Copied weights from output_hypernetworks_mlps[0] to index {checkpoint_mlps} through {num_mask_tokens - 1}"
+            )
 
     if skipped_keys:
         logging.info("Skipped %d checkpoint keys with incompatible shapes.", len(skipped_keys))

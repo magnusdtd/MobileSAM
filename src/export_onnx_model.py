@@ -1,9 +1,12 @@
+import copy
+import os
 import warnings
 
+import onnx
 import onnxruntime
 import torch
 import torch.onnx.utils as onnx_utils
-from onnxruntime.quantization import QuantType
+from onnxruntime.quantization import QuantType, quant_pre_process
 from onnxruntime.quantization.quantize import quantize_dynamic
 
 from mobile_sam import sam_model_registry
@@ -80,12 +83,45 @@ def run_export(
                 dynamic_axes=dynamic_axes,
             )
 
+    _fix_shared_initializers_identity(output)
+
     ort_inputs = {k: to_numpy(v) for k, v in dummy_inputs.items()}
     # set cpu provider default
     providers = ["CPUExecutionProvider"]
     ort_session = onnxruntime.InferenceSession(output, providers=providers)
     _ = ort_session.run(None, ort_inputs)
     print("Model has successfully been run with ONNXRuntime.")
+
+
+def _fix_shared_initializers_identity(model_path):
+    print(f"Loading exported model {model_path} to resolve shared initializers/Identity nodes...")
+    model = onnx.load(model_path)
+    graph = model.graph
+    initializers = {init.name: init for init in graph.initializer}
+
+    identity_nodes_to_remove = []
+    new_initializers = []
+
+    for node in graph.node:
+        if node.op_type == "Identity":
+            inp = node.input[0]
+            out = node.output[0]
+            if inp in initializers:
+                src_init = initializers[inp]
+                new_init = copy.deepcopy(src_init)
+                new_init.name = out
+                new_initializers.append(new_init)
+                identity_nodes_to_remove.append(node)
+
+    if identity_nodes_to_remove:
+        for new_init in new_initializers:
+            graph.initializer.append(new_init)
+        for node in identity_nodes_to_remove:
+            graph.node.remove(node)
+        onnx.save(model, model_path)
+        print(
+            f"Successfully resolved and removed {len(identity_nodes_to_remove)} Identity nodes forwarding shared initializers."
+        )
 
 
 def to_numpy(tensor):
@@ -108,11 +144,30 @@ if __name__ == "__main__":
 
     if args.quantize_out is not None:
         print(f"Quantizing model and writing to {args.quantize_out}...")
-        quantize_dynamic(
-            model_input=args.output,
-            model_output=args.quantize_out,
-            per_channel=False,
-            reduce_range=False,
-            weight_type=QuantType.QUInt8,
-        )
-        print("Done!")
+
+        temp_dir = os.path.dirname(args.quantize_out) or "."
+        temp_preprocessed = os.path.join(temp_dir, "temp_preprocessed.onnx")
+        try:
+            print("Running preprocessing (quant_pre_process)...")
+            quant_pre_process(
+                args.output,
+                temp_preprocessed,
+                skip_symbolic_shape=False,
+            )
+
+            print("Running quantize_dynamic...")
+            quantize_dynamic(
+                model_input=temp_preprocessed,
+                model_output=args.quantize_out,
+                per_channel=False,
+                reduce_range=False,
+                weight_type=QuantType.QInt8,
+                extra_options={"DefaultTensorType": onnx.TensorProto.FLOAT},
+            )
+            print("Quantization completed successfully!")
+        finally:
+            if os.path.exists(temp_preprocessed):
+                try:
+                    os.remove(temp_preprocessed)
+                except Exception:
+                    pass
