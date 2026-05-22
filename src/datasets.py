@@ -87,6 +87,7 @@ class SAMDataset(Dataset):
 
         self.images_data = self.coco_data.get("images", [])
         categories = self.coco_data.get("categories", [])
+        categories = [c for c in categories if c.get("name") != "uit"]
         self.category_ids = sorted(category["id"] for category in categories)
         if not self.category_ids:
             raise ValueError(f"No categories found in {self.annotation_path}")
@@ -158,6 +159,9 @@ class SAMDataset(Dataset):
         for ann in self.coco_data.get("annotations", []):
             img_id = ann["image_id"]
             if img_id in split_ids_set and img_id in self.img_id_to_path:
+                category_id = ann.get("category_id")
+                if category_id not in self.category_id_to_channel:
+                    continue
                 segmentation = ann.get("segmentation", [])
                 if isinstance(segmentation, list) and len(segmentation) > 0:
                     self.instances.append({"image_id": img_id, "annotation": ann})

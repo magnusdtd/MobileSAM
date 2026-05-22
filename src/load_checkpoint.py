@@ -136,6 +136,31 @@ def _load_matching_state_dict(
         state_dict = state_dict["model"]
 
     model_state = model.state_dict()
+
+    # Special handling: Check if checkpoint has 6 MLPs and model expects 5 (discarding 'uit' class)
+    checkpoint_has_6_mlps = any(key.startswith("mask_decoder.output_hypernetworks_mlps.5.") for key in state_dict)
+    model_has_5_mlps = "mask_decoder.output_hypernetworks_mlps.4.layers.0.weight" in model_state and "mask_decoder.output_hypernetworks_mlps.5.layers.0.weight" not in model_state
+
+    if checkpoint_has_6_mlps and model_has_5_mlps:
+        logging.info("Checkpoint has 6 output MLPs but model expects 5. Renaming checkpoint keys to skip class 'uit' (index 1)...")
+        mapped_state_dict = {}
+        for key, value in state_dict.items():
+            if key.startswith("mask_decoder.output_hypernetworks_mlps."):
+                parts = key.split(".")
+                idx = int(parts[2])
+                if idx == 0:
+                    mapped_state_dict[key] = value
+                elif idx == 1:
+                    # Skip 'uit' MLP
+                    continue
+                else:
+                    parts[2] = str(idx - 1)
+                    new_key = ".".join(parts)
+                    mapped_state_dict[new_key] = value
+            else:
+                mapped_state_dict[key] = value
+        state_dict = mapped_state_dict
+
     compatible_state = {}
     skipped_keys = []
     for key, value in state_dict.items():
@@ -146,29 +171,47 @@ def _load_matching_state_dict(
                 # Custom handling for shape mismatched mask decoder parameters
                 if key == "mask_decoder.mask_tokens.weight":
                     new_weight = model_state[key].clone()
-                    min_tokens = min(value.shape[0], new_weight.shape[0])
-                    new_weight[:min_tokens] = value[:min_tokens]
-                    if new_weight.shape[0] > value.shape[0]:
-                        # Fill the remaining slots with the single_mask token (index 0)
-                        new_weight[min_tokens:] = value[0]
-                    compatible_state[key] = new_weight
-                    logging.info(f"Custom loaded {key}: expanded from {value.shape} to {new_weight.shape}")
+                    if value.shape[0] == 6 and new_weight.shape[0] == 5:
+                        new_weight[0] = value[0]
+                        new_weight[1:] = value[2:]
+                        compatible_state[key] = new_weight
+                        logging.info(f"Custom loaded {key}: mapped from 6 to 5 tokens (skipping index 1)")
+                    else:
+                        min_tokens = min(value.shape[0], new_weight.shape[0])
+                        new_weight[:min_tokens] = value[:min_tokens]
+                        if new_weight.shape[0] > value.shape[0]:
+                            # Fill the remaining slots with the single_mask token (index 0)
+                            new_weight[min_tokens:] = value[0]
+                        compatible_state[key] = new_weight
+                        logging.info(f"Custom loaded {key}: expanded from {value.shape} to {new_weight.shape}")
                 elif key == "mask_decoder.iou_prediction_head.layers.2.weight":
                     new_weight = model_state[key].clone()
-                    min_tokens = min(value.shape[0], new_weight.shape[0])
-                    new_weight[:min_tokens] = value[:min_tokens]
-                    if new_weight.shape[0] > value.shape[0]:
-                        new_weight[min_tokens:] = value[0]
-                    compatible_state[key] = new_weight
-                    logging.info(f"Custom loaded {key}: expanded from {value.shape} to {new_weight.shape}")
+                    if value.shape[0] == 6 and new_weight.shape[0] == 5:
+                        new_weight[0] = value[0]
+                        new_weight[1:] = value[2:]
+                        compatible_state[key] = new_weight
+                        logging.info(f"Custom loaded {key}: mapped from 6 to 5 units (skipping index 1)")
+                    else:
+                        min_tokens = min(value.shape[0], new_weight.shape[0])
+                        new_weight[:min_tokens] = value[:min_tokens]
+                        if new_weight.shape[0] > value.shape[0]:
+                            new_weight[min_tokens:] = value[0]
+                        compatible_state[key] = new_weight
+                        logging.info(f"Custom loaded {key}: expanded from {value.shape} to {new_weight.shape}")
                 elif key == "mask_decoder.iou_prediction_head.layers.2.bias":
                     new_bias = model_state[key].clone()
-                    min_tokens = min(value.shape[0], new_bias.shape[0])
-                    new_bias[:min_tokens] = value[:min_tokens]
-                    if new_bias.shape[0] > value.shape[0]:
-                        new_bias[min_tokens:] = value[0]
-                    compatible_state[key] = new_bias
-                    logging.info(f"Custom loaded {key}: expanded from {value.shape} to {new_bias.shape}")
+                    if value.shape[0] == 6 and new_bias.shape[0] == 5:
+                        new_bias[0] = value[0]
+                        new_bias[1:] = value[2:]
+                        compatible_state[key] = new_bias
+                        logging.info(f"Custom loaded {key}: mapped from 6 to 5 units (skipping index 1)")
+                    else:
+                        min_tokens = min(value.shape[0], new_bias.shape[0])
+                        new_bias[:min_tokens] = value[:min_tokens]
+                        if new_bias.shape[0] > value.shape[0]:
+                            new_bias[min_tokens:] = value[0]
+                        compatible_state[key] = new_bias
+                        logging.info(f"Custom loaded {key}: expanded from {value.shape} to {new_bias.shape}")
                 else:
                     skipped_keys.append(key)
         else:
