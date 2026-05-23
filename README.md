@@ -138,6 +138,19 @@ uv run python scripts/show_masks.py \
 
 ---
 
+## Model comparison
+
+| Model Type | mAP@50 | mAP@50:95 | mIoU | Dice | Inference (ms) | Size (MB) |
+|---------|--------|-----------|------|------|----------------|-----------|
+| Rice MobileSAM (PyTorch) | 0.5637 | 0.5141 | 0.5440 | 0.5712 | 65.90 | 41.3 |
+| Rice MobileSAM (ONNX) | 0.5637 | 0.5141 | 0.5440 | 0.5712 | 160.24 | 17.1 |
+| Rice MobileSAM (ONNX Quantized) | 0.5469 | 0.5008 | 0.5315 | 0.5589 | 166.07 | 8.96 |
+| Coffee MobileSAM (PyTorch) | 0.6923 | 0.6591 | 0.6671 | 0.6848 | 62.14 | 41.3 |
+| Coffee MobileSAM (ONNX) | 0.6923 | 0.6591 | 0.6671 | 0.6848 | 146.31 | 17.1 |
+| Coffee MobileSAM (ONNX Quantized) | 0.6923 | 0.6559 | 0.6639 | 0.6820 | 148.13 | 8.96 |
+
+---
+
 ## 📝 To-Do List
 
 - [x] Unify the argument parser
@@ -148,8 +161,9 @@ uv run python scripts/show_masks.py \
 - [x] Add mAP@50, mAP@50:95, mIoU, Dice Score in the validation phase and make a log for them
 - [x] Early stopping with mAP@50
 - [x] Add prefix (`rice_` and `coffee_`) to checkpoints
-- [ ] Test and fix the inference script
-- [ ] Test and fix the ONNX export script
+- [x] Test and fix the inference script
+- [x] Test and fix the ONNX export script
+- [x] Add evaluating scripts to calculate the performance of the model in Pytorch and ONNX format
 - [ ] Hyperparameter tuning
 
 ---
