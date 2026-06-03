@@ -4,6 +4,7 @@ import os
 from pathlib import Path, PurePath
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import onnxruntime
 import torch
@@ -185,7 +186,7 @@ def main():
                 point_labels_np = np.array([[2, 3]], dtype=np.float32)
                 mask_input_np = np.zeros((1, 1, 256, 256), dtype=np.float32)
                 has_mask_input_np = np.array([0.0], dtype=np.float32)
-                orig_im_size_np = np.array([h_orig, w_orig], dtype=np.float32)
+                orig_im_size_np = np.array([args.img_size, args.img_size], dtype=np.float32)
 
                 ort_inputs = {
                     "image_embeddings": image_embeddings_np,
@@ -199,7 +200,7 @@ def main():
                 # 3. Run ONNX model
                 ort_outputs = ort_session.run(None, ort_inputs)
                 # Slice to remove the single mask prediction (index 0) to align with PyTorch multimask output
-                pred_masks_np = ort_outputs[0][:, 1:, :, :]  # Shape: (1, 4, h_orig, w_orig)
+                pred_masks_np = ort_outputs[0][:, 1:, :, :]  # Shape: (1, 4, img_size, img_size)
                 pred_IOUs_np = ort_outputs[1][:, 1:]  # Shape: (1, 4)
 
                 # Classify by picking channel with highest predicted IoU score
@@ -208,8 +209,11 @@ def main():
                 class_name = labels_map.get(pred_class_id, f"Class {pred_class_id}")
                 print(f"Box {bbox} -> Predicted Class (ONNX): {class_name} (Score: {pred_score:.4f})")
 
-                # Sigmoid and thresholding to get binary mask of shape (h_orig, w_orig)
-                mask_orig = (1 / (1 + np.exp(-pred_masks_np[0, pred_class_id])) > 0.5).astype(np.uint8)
+                # Sigmoid and thresholding to get binary mask of shape (img_size, img_size)
+                mask_1024 = (1 / (1 + np.exp(-pred_masks_np[0, pred_class_id])) > 0.5).astype(np.uint8)
+
+                # Upscale mask back to original resolution
+                mask_orig = cv2.resize(mask_1024, (w_orig, h_orig), interpolation=cv2.INTER_NEAREST)
             else:
                 with torch.no_grad():
                     pred_masks, pred_IOUs = model(image_tensor, bbox_tensor)
@@ -250,7 +254,23 @@ def main():
         else:
             vis_filename = "visualization.jpg"
         vis_path = save_dir / vis_filename
-        cv2.imwrite(str(vis_path), vis_image)
+
+        image_rgb = cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB)
+        vis_rgb = cv2.cvtColor(vis_image, cv2.COLOR_BGR2RGB)
+
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+        axes[0].imshow(image_rgb)
+        axes[0].set_title("Original image", fontsize=14)
+        axes[0].axis("off")
+
+        axes[1].imshow(vis_rgb)
+        axes[1].set_title("Overlaid image", fontsize=14)
+        axes[1].axis("off")
+
+        plt.tight_layout()
+        plt.savefig(str(vis_path), bbox_inches="tight", dpi=300)
+        plt.close()
+
         print(f"Saved visualization to {vis_path}")
 
     if args.onnx is not None:

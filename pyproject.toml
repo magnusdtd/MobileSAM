@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "albumentations>=2.0.8",
+    "ipython>=9.14.0",
     "matplotlib>=3.10.9",
+    "matplotlib-inline>=0.2.2",
     "numpy>=2.4.4",
     "onnx>=1.21.0",
     "onnxruntime>=1.26.0",

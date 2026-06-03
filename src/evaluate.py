@@ -140,6 +140,20 @@ def evaluate_model(args):
     criterion_MSE = nn.MSELoss()
     criterion_Dice = DiceLoss(sigmoid=True, squared_pred=True, reduction="mean")
 
+    # Initialize confusion matrix and class names
+    num_classes = dataset.num_classes
+    class_names = [None] * num_classes
+    for cat in dataset.coco_data.get("categories", []):
+        cat_id = cat["id"]
+        if cat_id in dataset.category_id_to_channel:
+            idx = dataset.category_id_to_channel[cat_id]
+            class_names[idx] = cat["name"]
+    for idx in range(num_classes):
+        if class_names[idx] is None:
+            class_names[idx] = f"Class {idx}"
+
+    conf_matrix = np.zeros((num_classes, num_classes), dtype=np.int64)
+
     total_loss = 0.0
     total_iou = 0.0
     total_dice = 0.0
@@ -289,6 +303,14 @@ def evaluate_model(args):
                 total_map_50_95 += batch_map_50_95
                 valid_batches += 1
 
+            # Update confusion matrix
+            for i in range(B):
+                sum_mask = mask[i].sum(dim=(1, 2))
+                if sum_mask.sum() > 0:
+                    true_class = torch.argmax(sum_mask).item()
+                    pred_class = torch.argmax(pred_IOU[i]).item()
+                    conf_matrix[true_class, pred_class] += 1
+
             progress_bar.set_postfix(loss=loss.item(), latency_ms=total_latency)
 
     # Average metrics over the dataset
@@ -301,6 +323,55 @@ def evaluate_model(args):
     mean_enc_latency = np.mean(enc_latencies)
     mean_dec_latency = np.mean(dec_latencies)
     mean_total_latency = np.mean(total_latencies)
+
+    # Save path for confusion matrix
+    save_dir = Path(".")
+    if hasattr(args, "model") and hasattr(args.model, "save_path"):
+        save_dir = Path(args.model.save_path)
+    elif hasattr(args, "visual") and hasattr(args.visual, "save_path"):
+        save_dir = Path(args.visual.save_path)
+
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    model_suffix = "onnx" if args.eval_onnx else "pytorch"
+    save_path = save_dir / f"confusion_matrix_{model_suffix}_{args.eval_split}.png"
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    im = ax.imshow(conf_matrix, interpolation="nearest", cmap=plt.cm.Blues)
+    ax.figure.colorbar(im, ax=ax)
+
+    ax.set(
+        xticks=np.arange(num_classes),
+        yticks=np.arange(num_classes),
+        xticklabels=class_names,
+        yticklabels=class_names,
+        title=f"Confusion Matrix ({model_suffix.upper()} - {args.eval_split.capitalize()})",
+        ylabel="True Label",
+        xlabel="Predicted Label",
+    )
+
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
+    fmt = "d"
+    thresh = conf_matrix.max() / 2.0
+    for i in range(num_classes):
+        for j in range(num_classes):
+            ax.text(
+                j,
+                i,
+                format(conf_matrix[i, j], fmt),
+                ha="center",
+                va="center",
+                color="white" if conf_matrix[i, j] > thresh else "black",
+            )
+    fig.tight_layout()
+    plt.savefig(str(save_path), dpi=300)
+    plt.close()
 
     print("\n" + "=" * 60)
     print("                 MobileSAM Evaluation Results")
@@ -325,6 +396,17 @@ def evaluate_model(args):
     print(f"  - Image Encoder:   {mean_enc_latency:.2f} ms")
     print(f"  - Mask Decoder:    {mean_dec_latency:.2f} ms")
     print(f"  - Total Latency:   {mean_total_latency:.2f} ms")
+    print("-" * 60)
+    print(f" Confusion Matrix saved to: {save_path.resolve()}")
+    print("-" * 60)
+    print("\nConfusion Matrix:")
+    header = f"{'True \\ Pred':<20}" + "".join([f"{name[:15]:>16}" for name in class_names])
+    print(header)
+    print("-" * len(header))
+    for i, true_name in enumerate(class_names):
+        row_str = f"{true_name[:20]:<20}" + "".join([f"{conf_matrix[i, j]:>16}" for j in range(num_classes)])
+        print(row_str)
+    print("-" * len(header) + "\n")
     print("=" * 60 + "\n")
 
 

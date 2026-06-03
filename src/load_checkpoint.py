@@ -139,10 +139,15 @@ def _load_matching_state_dict(
 
     # Special handling: Check if checkpoint has 6 MLPs and model expects 5 (discarding 'uit' class)
     checkpoint_has_6_mlps = any(key.startswith("mask_decoder.output_hypernetworks_mlps.5.") for key in state_dict)
-    model_has_5_mlps = "mask_decoder.output_hypernetworks_mlps.4.layers.0.weight" in model_state and "mask_decoder.output_hypernetworks_mlps.5.layers.0.weight" not in model_state
+    model_has_5_mlps = (
+        "mask_decoder.output_hypernetworks_mlps.4.layers.0.weight" in model_state
+        and "mask_decoder.output_hypernetworks_mlps.5.layers.0.weight" not in model_state
+    )
 
     if checkpoint_has_6_mlps and model_has_5_mlps:
-        logging.info("Checkpoint has 6 output MLPs but model expects 5. Renaming checkpoint keys to skip class 'uit' (index 1)...")
+        logging.info(
+            "Checkpoint has 6 output MLPs but model expects 5. Renaming checkpoint keys to skip class 'uit' (index 1)..."
+        )
         mapped_state_dict = {}
         for key, value in state_dict.items():
             if key.startswith("mask_decoder.output_hypernetworks_mlps."):
